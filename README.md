@@ -30,6 +30,9 @@ You will see output similar to the following:
 security patches OK - no pending security updates
 ```
 ```
+security patches WARN - 34 security updates pending: ALSA-2025:23306 ALSA-2025:23306 ALSA-2025:21931 ALSA-2025:22395 <output snipped>
+```
+```
 security patches WARN - 1 security updates pending, use dnf updateinfo list --security for details: FEDORA-EPEL-2025-beeb62ad3c
 ```
 ```
