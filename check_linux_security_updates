@@ -7,14 +7,17 @@
 
 # FUTURE ENHANCEMENTS
 # ------------------
-# figure out how to update yum cache regularly to avoid this message: Not root, Subscription Management repositories not updated
-# similar issue for Debian
+# 1) figure out how to update yum cache regularly to avoid this message: Not root, Subscription Management repositories not updated
+# 2) similar issue for Debian
+# 3) figure out how to generate a warning if RHEL does not have an active subscription
+# 4) $pending_updates can be hundreds of packages, makes nagios output too long, 
+# 4) Add error check to confirm $output_file gets deleted, just in case this script runs once as root 
 
 
 # NOTES
 # -----
 # Nagios check to return the number of available security patches
-# Tested on Debian, Ubuntu, RHEL, Rocky, Alma, Oracle Linux, CentOS, Fedora
+# Tested on Debian, Ubuntu, RHEL, Rocky, Alma, Oracle Linux, CentOS, Fedora.  Should be easy to add other distros.
 
 
 # USAGE
@@ -37,7 +40,7 @@
 #        command_name    check_linux_security_patches
 #        command_line    $USER1$/check_linux_security_patches
 #        }
-
+#
 #  This script is executed remotely on a monitored system by the NRPE or check_by_ssh
 #  methods available in nagios.
 #
@@ -75,7 +78,7 @@ WARN=1
 CRITICAL=2
 UNKNOWN=3
 CHECK_NAME="security patches"
-
+output_file=/tmp/check_linux_security_patches.tmp
 
 
 function debian_variants() {
@@ -100,14 +103,29 @@ function debian_variants() {
    # 
    #
    if [ -f "/bin/apt" ] && [ -f "/etc/os-release" ]; then
-      count=0				#initialize variable
-      pending_updates=$(apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/ {print $2}' | tr '\n' ' ')
-      count=$(printf '%s\n' "$pending_updates" | wc -w)
+      #
+      # initialize variables
+      #
+      count=0                           #initialize variable
+      #
+      # save pending updates to a temporary file for referencing by other scripts, refresh hourly
+      #
+      test -f $output_file && find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
+      test -f $output_file || apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' > $output_file
+      #
+      # count the number of pending updates
+      #
+      count=$(wc -l $output_file | awk '{print $1}')
+      #
+      # save all the update names as a single string
+      #
+      pending_updates=$(cat $output_file | awk '{print $2}' | tr '\n' ' ')
+      #
       if [ "$count" -gt 0 ]; then
-         echo "$CHECK_NAME WARN $count security updates pending: $pending_updates"
+         echo "WARN $count security updates pending, use apt-get -s upgrade | grep ^inst | grep \"-security\" for details"
          exit $WARN
       else
-         echo "$CHECK_NAME OK $count security updates pending"
+         echo "OK $count security updates pending"
          exit $OK
       fi
    fi
@@ -158,13 +176,17 @@ function rhel_variants() {
    #
    #
    if [ -f "/etc/redhat-release" ] || [ -f "/etc/fedora-release" ] || [ -f "/etc/rocky-release" ] || [ -f "/etc/alma-release" ] || [ -f "/etc/oracle-release" ]; then
+      #
+      # initialize variables
+      #
+      count=0                           #initialize variable
+      regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades"
       # 
       # skip this section for CentOS, greedy match for /etc/redhat-release, we have a unique section just for CentOS
       #
       if [ -f "/etc/centos-release" ]; then
          return
       fi
-      #
       #
       # If RHEL, confirm an active subscription, because RHEL needs a subscription for access to vendor repos
       #
@@ -174,18 +196,26 @@ function rhel_variants() {
          # this section is not complete, maybe a different check like check_rhel_subscription that runs as root?
       fi
       #
-      count=0				#initialize variable
-      regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades"
-      pending_updates=$(dnf updateinfo list --security 2>&1 | grep -E -v "$regex_exclusions" | awk '{print $1}' | tr '\n' ' ')
-      count=$(printf '%s\n' "$pending_updates" | wc -w)
+      # save pending updates to a temporary file for referencing by other scripts, refresh hourly
+      #
+      test -f $output_file && find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
+      test -f $output_file || dnf updateinfo list --security | grep -E -v "$regex_exclusions" > $output_file
+      #
+      # count the number of pending updates
+      #
+      count=$(wc -l $output_file | awk '{print $1}')
+      #
+      # save all the update names as a single string
+      #
+      pending_updates=$(cat $output_file | awk '{print $1}' | tr '\n' ' ')
       #
       # We only get this far for RHEL with an active subscription, or any non-RHEL that does not require a subscription
       # 
       if [ "$count" -gt 0 ]; then
-         echo "$CHECK_NAME WARN - $count security updates pending, use dnf updateinfo list --security for details: $pending_updates"
+         echo "WARN $count security updates pending, use dnf updateinfo list --security for details"
          exit $WARN
       else
-         echo "$CHECK_NAME OK - no security updates pending"
+         echo "OK $count security updates pending"
          exit $OK
       fi
    fi
@@ -196,7 +226,6 @@ function rhel_variants() {
 
 function centos() {
    #
-   # For CentOS Stream
    # Unlike RHEL, CentOS Stream is a rolling-release distro, not errata-driven, 
    # so this strategy really is not applicable for CentOS, you should just update regularly.
    # The closest approximation on CentOS to show pending updates would be: 
@@ -204,16 +233,30 @@ function centos() {
    #
    #
    if [ -f "/etc/centos-release" ]; then
+      #
+      # initialize variables
+      #
       count=0				#initialize variable
       regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades"
-      pending_updates=$(dnf list updates 2>&1 | grep -E -v "$regex_exclusions" | awk '{print $1}' | tr '\n' ' ')
-      count=$(printf '%s\n' "$pending_updates" | wc -w)
+      #
+      # save pending updates to a temporary file for referencing by other scripts, refresh hourly
+      #
+      test -f $output_file && find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
+      test -f $output_file || dnf list updates 2>&1 | grep -E -v "$regex_exclusions" > $output_file
+      #
+      # count the number of pending updates
+      #
+      count=$(wc -l $output_file | awk '{print $1}')
+      #
+      # save all the update names as a single string
+      #
+      pending_updates=$(cat $output_file | awk '{print $1}' | tr '\n' ' ')
       #
       if [ "$count" -gt 0 ]; then
-         echo "$CHECK_NAME WARN - $count updates available, but since CentOS does not classify updates as security or bugfix or enhancement, this represents all available updates. Try these commands to see all pending updates: dnf list updates ; dnf repoquery --changelogs --upgrades"
+         echo "WARN $count updates available, but since CentOS does not classify updates as security or bugfix or enhancement, this represents all available updates. Try these commands to see all pending updates: dnf list updates ; dnf repoquery --changelogs --upgrades"
          exit $WARN
       else
-         echo "$CHECK_NAME OK - no updates pending"
+         echo "OK $count security updates pending"
       fi
    fi
 }
@@ -225,7 +268,7 @@ function unknown_linux_version() {
    #
    # we should never get this far
    #
-   echo "$CHECK_NAME UNKNOWN - could not determine if any security updates are pending"
+   echo "UNKNOWN could not determine if any security updates are pending"
    exit $UNKNOWN
 }
 
