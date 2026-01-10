@@ -16,7 +16,7 @@
 
 # NOTES
 # -----
-# Nagios check to return the number of available security patches
+# Nagios check to return the number of available security updates
 # Tested on Debian, Ubuntu, RHEL, Rocky, Alma, Oracle Linux, CentOS, Fedora.  Should be easy to add other distros.
 
 
@@ -30,15 +30,15 @@
 #define service{
 #        use                             generic-service
 #        hostgroup_name                  all_linux
-#        service_description             security patches
-#        check_command                   check_linux_security_patches
+#        service_description             security updates
+#        check_command                   check_linux_security_updates
 #        }
 #
 # Add a section similar to the following to commands.cfg
 ## 'check_nagios_notficiations' command definition 
 #define command{
-#        command_name    check_linux_security_patches
-#        command_line    $USER1$/check_linux_security_patches
+#        command_name    check_linux_security_updates
+#        command_line    $USER1$/check_linux_security_updates
 #        }
 #
 #  This script is executed remotely on a monitored system by the NRPE or check_by_ssh
@@ -51,8 +51,8 @@
 #   define service{
 #           use                             generic-24x7-service
 #           hostgroup_name                  all_linux
-#           service_description             security patches
-#           check_command                   check_by_ssh!"/usr/local/nagios/libexec/check_linux_security_patches"
+#           service_description             security updates
+#           check_command                   check_by_ssh!"/usr/local/nagios/libexec/check_linux_security_updates"
 #           }
 #
 #  If you are using the check_nrpe method, you will need a section in the services.cfg
@@ -62,12 +62,12 @@
 #   define service{
 #           use                             generic-24x7-service
 #           hostgroup_name                  all_linux 
-#           service_description             security patches
-#           check_command                   check_nrpe!check_linux_security_patches -t 30
+#           service_description             security updates
+#           check_command                   check_nrpe!check_linux_security_updates -t 30
 #           }
 #
 #  If using NRPE, you will also need a section defining the NRPE command in the /usr/local/nagios/nrpe.cfg file that looks like this:
-#   command[check_linux_security_patches]=/usr/local/nagios/libexec/check_linux_security_patches
+#   command[check_linux_security_updates]=/usr/local/nagios/libexec/check_linux_security_updates
 
 
 
@@ -77,8 +77,8 @@ OK=0
 WARN=1
 CRITICAL=2
 UNKNOWN=3
-CHECK_NAME="security patches"
-output_file=/tmp/check_linux_security_patches.tmp
+CHECK_NAME="security updates"
+output_file=/tmp/check_linux_security_updates.tmp
 
 
 function debian_variants() {
