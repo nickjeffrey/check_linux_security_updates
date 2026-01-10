@@ -89,15 +89,25 @@ function debian_variants() {
    # so the way to find only security fixes is to filter the available updates to only look for the updates 
    # from the *-security repository.
    #
+   # Sample output:
+   # $ apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' 
+   # Inst libstdc++6 [14-20240412-0ubuntu1] (14.2.0-4ubuntu2~24.04 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64]) []
+   # Inst libc6 [2.39-0ubuntu8] (2.39-0ubuntu8.6 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+   # Inst dpkg [1.22.6ubuntu6] (1.22.6ubuntu6.5 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+   # Inst perl-base [5.38.2-3.2build2] (5.38.2-3.2ubuntu0.2 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64]) []
+   # Inst gpg [2.4.4-2ubuntu17] (2.4.4-2ubuntu17.4 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64]) [gnupg:amd64 ]
+   # Inst sudo [1.9.15p5-3ubuntu5] (1.9.15p5-3ubuntu5.24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64]) []
+   # 
+   #
    if [ -f "/bin/apt" ] && [ -f "/etc/os-release" ]; then
       count=0				#initialize variable
       pending_updates=$(apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/ {print $2}' | tr '\n' ' ')
       count=$(printf '%s\n' "$pending_updates" | wc -w)
       if [ "$count" -gt 0 ]; then
-         echo "$CHECK_NAME WARN - $count security updates pending: $pending_updates"
+         echo "$CHECK_NAME WARN $count security updates pending: $pending_updates"
          exit $WARN
       else
-         echo "$CHECK_NAME OK - no security updates pending"
+         echo "$CHECK_NAME OK $count security updates pending"
          exit $OK
       fi
    fi
