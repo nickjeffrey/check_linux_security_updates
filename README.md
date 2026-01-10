@@ -35,4 +35,7 @@ security patches WARN - 1 security updates pending, use dnf updateinfo list --se
 ```
 security patches WARN - 211 updates available, but since CentOS does not classify updates as security or bugfix or enhancement, this represents all available updates. Try these commands to see all pending updates: dnf list updates ; dnf repoquery --changelogs --upgrades
 ```
+```
+security patches WARN - 140 security updates pending: libc-devtools libc6-dev libc-dev-bin linux-libc-dev <output snipped>
+```
 
