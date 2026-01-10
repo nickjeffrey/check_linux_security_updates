@@ -1,0 +1,229 @@
+#!/bin/bash
+
+# CHANGE LOG
+# ----------
+# 2026-01-08	njeffrey	Script created
+
+
+# FUTURE ENHANCEMENTS
+# ------------------
+# figure out how to update yum cache regularly to avoid this message: Not root, Subscription Management repositories not updated
+# similar issue for Debian
+
+
+# NOTES
+# -----
+# Nagios check to return the number of available security patches
+# Tested on Debian, Ubuntu, RHEL, Rocky, Alma, Oracle Linux, CentOS, Fedora
+
+
+# USAGE
+# -----
+# It is assumed this scrpt is located in /usr/local/nagios/libexec/ or equivalent for your environment
+#
+# Add a section similar to the following to services.cfg
+#
+#
+#define service{
+#        use                             generic-service
+#        hostgroup_name                  all_linux
+#        service_description             security patches
+#        check_command                   check_linux_security_patches
+#        }
+#
+# Add a section similar to the following to commands.cfg
+## 'check_nagios_notficiations' command definition 
+#define command{
+#        command_name    check_linux_security_patches
+#        command_line    $USER1$/check_linux_security_patches
+#        }
+
+#  This script is executed remotely on a monitored system by the NRPE or check_by_ssh
+#  methods available in nagios.
+#
+#  If you are using the check_by_ssh method, you will need a section in the services.cfg
+#  file on the nagios server that looks similar to the following.
+#  This assumes that you already have ssh key pairs configured.
+#   # Define service for checking time synchronization
+#   define service{
+#           use                             generic-24x7-service
+#           hostgroup_name                  all_linux
+#           service_description             security patches
+#           check_command                   check_by_ssh!"/usr/local/nagios/libexec/check_linux_security_patches"
+#           }
+#
+#  If you are using the check_nrpe method, you will need a section in the services.cfg
+#  file on the nagios server that looks similar to the following.
+#  This assumes that you already have ssh key pairs configured.
+#   # Define service for checking time synchronization
+#   define service{
+#           use                             generic-24x7-service
+#           hostgroup_name                  all_linux 
+#           service_description             security patches
+#           check_command                   check_nrpe!check_linux_security_patches -t 30
+#           }
+#
+#  If using NRPE, you will also need a section defining the NRPE command in the /usr/local/nagios/nrpe.cfg file that looks like this:
+#   command[check_linux_security_patches]=/usr/local/nagios/libexec/check_linux_security_patches
+
+
+
+
+# declare variables
+OK=0
+WARN=1
+CRITICAL=2
+UNKNOWN=3
+CHECK_NAME="security patches"
+
+
+
+function debian_variants() {
+   #
+   # For apt based systems like Debian, Ubuntu
+   # Note that apt does not have a stable CLI interface, use apt-get for scripts to avoid this warning:
+   # WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+   #
+   # APT-based systems like Debian or Ubuntu do not publish RHSA/RHBA advisory metadata, so we need to use a different method.  
+   # On Debian-based systems, security updates will come from the *-security repository, 
+   # so the way to find only security fixes is to filter the available updates to only look for the updates 
+   # from the *-security repository.
+   #
+   if [ -f "/bin/apt" ] && [ -f "/etc/os-release" ]; then
+      count=0				#initialize variable
+      pending_updates=$(apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/ {print $2}' | tr '\n' ' ')
+      count=$(printf '%s\n' "$pending_updates" | wc -w)
+      if [ "$count" -gt 0 ]; then
+         echo "$CHECK_NAME WARN - $count security updates pending: $pending_updates"
+         exit $WARN
+      else
+         echo "$CHECK_NAME OK - no security updates pending"
+         exit $OK
+      fi
+   fi
+}
+
+
+
+function rhel_variants() {
+   #
+   # This section is for RHEL variants that publish security errata (RHEL, Fedora, Rocky, Alma, Oracle Linux)
+   # 
+   # dnf updateinfo list                <-- show all types of updates (including unspecified types)
+   # dnf updateinfo list --security     <-- only show security updates
+   # dnf updateinfo list --bugfix       <-- only show bugfix updates
+   # dnf updateinfo list --enhancement  <-- only show bugfix updates
+   #
+   #
+   # Sample output on RHEL (RHSA = Red Hat Security Advisory)
+   # dnf updateinfo list --security     <-- only show security updates
+   # Name            Severity       Package                                 
+   # RHSA-2024:10281 Moderate/Sec.  kernel-4.18.0-553.30.1.el8_10.x86_64
+   # RHSA-2024:10943 Moderate/Sec.  kernel-core-4.18.0-553.32.1.el8_10.x86_64
+   #
+   # Sample output on Alma Linux (ALSA = Alma Linux Security Advisory)
+   # dnf updateinfo list --security     <-- only show security updates
+   # Name            Severity       Package                                 
+   # ALSA-2025:23279 Important/Sec. kernel-tools-libs-6.12.0-124.21.1.el10_1.x86_64
+   # ALSA-2025:23484 Moderate/Sec.  libssh-0.11.1-5.el10_1.x86_64
+   # ALSA-2025:23479 Moderate/Sec.  openssh-9.9p1-12.el10_1.alma.1.x86_64
+   # ALSA-2025:23940 Moderate/Sec.  python3-3.12.12-1.el10_1.x86_64
+   #
+   # Sample output on Rocky Linux (RLSA = Rocky Linux Security Advisory)
+   # dnf updateinfo list --security     <-- only show security updates
+   # RLSA-2025:21248 Moderate/Sec.  openssl-1:3.5.1-4.el10_1.x86_64
+   # RLSA-2025:23295 Moderate/Sec.  podman-7:5.6.0-8.el10_1.x86_64
+   # RLSA-2025:23940 Moderate/Sec.  python3-3.12.12-1.el10_1.x86_64
+   # RLSA-2026:0002  Moderate/Sec.  tar-2:1.35-9.el10_1.x86_64
+   #
+   # Sample output on Fedora:
+   # dnf updateinfo list
+   # Updating and loading repositories:
+   # Repositories loaded.
+   # Name                   Type           Severity    Package                                     Issued
+   # FEDORA-2025-b3e118a1c5 unspecified    None        plymouth-24.004.60-22.fc43.x86_64           2025-12-22 01:38:16
+   # FEDORA-2026-758e825a45 enhancement    None        libsolv-0.7.35-3.fc43.x86_64                2026-01-07 01:08:44
+   # FEDORA-2026-7b32524912 bugfix         Low         python3-boto3-1.42.23-1.fc43.noarch         2026-01-08 01:11:49
+   # FEDORA-2026-1a2b3c4d   Important/Sec.             openssl security update
+   #
+   #
+   if [ -f "/etc/redhat-release" ] || [ -f "/etc/fedora-release" ] || [ -f "/etc/rocky-release" ] || [ -f "/etc/alma-release" ] || [ -f "/etc/oracle-release" ]; then
+      # 
+      # skip this section for CentOS, greedy match for /etc/redhat-release, we have a unique section just for CentOS
+      #
+      if [ -f "/etc/centos-release" ]; then
+         return
+      fi
+      #
+      #
+      # If RHEL, confirm an active subscription, because RHEL needs a subscription for access to vendor repos
+      #
+      if [ -f "/etc/redhat-release" ] && grep -q "Red Hat Enterprise Linux" /etc/redhat-release; then
+         : #bash built in no-op placeholder command to avoid errors due to nothing inside if block
+         # trying to figure out how to determine subscription status without root privileges
+         # this section is not complete, maybe a different check like check_rhel_subscription that runs as root?
+      fi
+      #
+      count=0				#initialize variable
+      regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades"
+      pending_updates=$(dnf updateinfo list --security 2>&1 | grep -E -v "$regex_exclusions" | awk '{print $1}' | tr '\n' ' ')
+      count=$(printf '%s\n' "$pending_updates" | wc -w)
+      #
+      # We only get this far for RHEL with an active subscription, or any non-RHEL that does not require a subscription
+      # 
+      if [ "$count" -gt 0 ]; then
+         echo "$CHECK_NAME WARN - $count security updates pending, use dnf updateinfo list --security for details: $pending_updates"
+         exit $WARN
+      else
+         echo "$CHECK_NAME OK - no security updates pending"
+         exit $OK
+      fi
+   fi
+}
+
+
+
+
+function centos() {
+   #
+   # For CentOS Stream
+   # Unlike RHEL, CentOS Stream is a rolling-release distro, not errata-driven, 
+   # so this strategy really is not applicable for CentOS, you should just update regularly.
+   # The closest approximation on CentOS to show pending updates would be: 
+   # dnf repoquery --changelogs --upgrades
+   #
+   #
+   if [ -f "/etc/centos-release" ]; then
+      count=0				#initialize variable
+      regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades"
+      pending_updates=$(dnf list updates 2>&1 | grep -E -v "$regex_exclusions" | awk '{print $1}' | tr '\n' ' ')
+      count=$(printf '%s\n' "$pending_updates" | wc -w)
+      #
+      if [ "$count" -gt 0 ]; then
+         echo "$CHECK_NAME WARN - $count updates available, but since CentOS does not classify updates as security or bugfix or enhancement, this represents all available updates. Try these commands to see all pending updates: dnf list updates ; dnf repoquery --changelogs --upgrades"
+         exit $WARN
+      else
+         echo "$CHECK_NAME OK - no updates pending"
+      fi
+   fi
+}
+
+
+
+
+function unknown_linux_version() {
+   #
+   # we should never get this far
+   #
+   echo "$CHECK_NAME UNKNOWN - could not determine if any security updates are pending"
+   exit $UNKNOWN
+}
+
+
+# --------------- main body of script
+debian_variants
+rhel_variants
+centos
+unknown_linux_version
+
+
