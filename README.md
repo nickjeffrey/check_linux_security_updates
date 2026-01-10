@@ -27,18 +27,18 @@ define service{
 You will see output similar to the following:
 
 ```
-security patches OK - no pending security updates
+security patches OK 0 pending security updates
 ```
 ```
-security patches WARN - 34 security updates pending: ALSA-2025:23306 ALSA-2025:23306 ALSA-2025:21931 ALSA-2025:22395 <output snipped>
+security patches WARN 34 security updates pending: ALSA-2025:23306 ALSA-2025:23306 ALSA-2025:21931 ALSA-2025:22395 <output snipped>
 ```
 ```
-security patches WARN - 1 security updates pending, use dnf updateinfo list --security for details: FEDORA-EPEL-2025-beeb62ad3c
+security patches WARN 1 security updates pending, use dnf updateinfo list --security for details: FEDORA-EPEL-2025-beeb62ad3c
 ```
 ```
-security patches WARN - 211 updates available, but since CentOS does not classify updates as security or bugfix or enhancement, this represents all available updates. Try these commands to see all pending updates: dnf list updates ; dnf repoquery --changelogs --upgrades
+security patches WARN 211 updates available, but since CentOS does not classify updates as security or bugfix or enhancement, this represents all available updates. Try these commands to see all pending updates: dnf list updates ; dnf repoquery --changelogs --upgrades
 ```
 ```
-security patches WARN - 140 security updates pending: libc-devtools libc6-dev libc-dev-bin linux-libc-dev <output snipped>
+security patches WARN 140 security updates pending: libc-devtools libc6-dev libc-dev-bin linux-libc-dev <output snipped>
 ```
 
