@@ -1,6 +1,6 @@
 # check_linux_security updates
 
-nagios check to show pending security udpates on assorted Linux distros
+nagios check to show pending security uppates on assorted Linux distros
 
 Tested on Debian, Ubuntu, Fedora, RHEL, Alma, Rocky, Oracle Linux
 
