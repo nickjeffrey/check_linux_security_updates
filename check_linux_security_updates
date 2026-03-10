@@ -2,7 +2,8 @@
 
 # CHANGE LOG
 # ----------
-# 2026-01-08	njeffrey	Script created
+# 2026-01-08	njeffrey    Script created
+# 2026-03-10   njeffrey    Bug fix for CentOS
 
 
 # FUTURE ENHANCEMENTS
@@ -257,6 +258,7 @@ function centos() {
          exit $WARN
       else
          echo "OK $count security updates pending"
+         exit $OK
       fi
    fi
 }
