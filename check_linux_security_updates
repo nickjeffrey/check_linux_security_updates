@@ -4,6 +4,7 @@
 # ----------
 # 2026-01-08	njeffrey    Script created
 # 2026-03-10   njeffrey    Bug fix for CentOS
+# 2026-03-10   njeffrey    update regex exclusions for CentOS
 
 
 # FUTURE ENHANCEMENTS
@@ -238,7 +239,7 @@ function centos() {
       # initialize variables
       #
       count=0				#initialize variable
-      regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades"
+      regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades|^CentOS Stream|^Extra Packages"
       #
       # save pending updates to a temporary file for referencing by other scripts, refresh hourly
       #
