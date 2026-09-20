@@ -192,6 +192,7 @@ function rhel_variants() {
       #
       count=0                           #initialize variable
       regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades"
+      regex_inclusions="^RHSA|^ALSA|^ELSA|^RLSA|^FEDORA"
       # 
       # skip this section for CentOS, greedy match for /etc/redhat-release, we have a unique section just for CentOS
       #
@@ -210,7 +211,7 @@ function rhel_variants() {
       # save pending updates to a temporary file for referencing by other scripts, refresh hourly
       #
       test -f $output_file && find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
-      test -f $output_file || dnf updateinfo list --security | grep -E -v "$regex_exclusions" > $output_file
+      test -f $output_file || dnf updateinfo list --security | grep -E -v "$regex_exclusions" | grep -E "$regex_inclusions" > $output_file
       #
       # count the number of pending updates
       #
@@ -239,9 +240,11 @@ function centos() {
    #
    # Unlike RHEL, CentOS Stream is a rolling-release distro, not errata-driven, 
    # so this strategy really is not applicable for CentOS, you should just update regularly.
+   # Note that we do not have a $regex_inclusions varible in this section
    # The closest approximation on CentOS to show pending updates would be: 
-   # dnf repoquery --changelogs --upgrades
-   #
+   # dnf repoquery --changelogs --upgrades     # <--- too verbose, includes brief description of each change
+   # dnf check-update                          # <--- more appropriate for what we want here, just a list of available package updates
+   # dnf list updates                          # <--- best option, similar to above but a bit less verbose
    #
    if [ -f "/etc/centos-release" ]; then
       #
@@ -267,7 +270,7 @@ function centos() {
          echo "WARN $count updates available, but since CentOS does not classify updates as security or bugfix or enhancement, this represents all available updates. Try these commands to see all pending updates: dnf list updates ; dnf repoquery --changelogs --upgrades"
          exit $WARN
       else
-         echo "OK $count security updates pending"
+         echo "OK $count updates pending"
          exit $OK
       fi
    fi
