@@ -116,9 +116,10 @@ function debian_variants() {
       # save pending updates to a temporary file for referencing by other scripts, refresh hourly
       #
       if [ -f "$output_file" ] ; then
-         echo "$verbose" | grep -q yes && echo Found existing output file $output_file
-         find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
+         # delete existing output file if it is too old
+         find $output_file -type f -mmin +720 -delete	
          echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
+         echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
       fi
       if [ ! -f "$output_file" ] ; then
          echo "$verbose" | grep -q yes && echo Creating new output file $output_file
@@ -219,9 +220,10 @@ function rhel_variants() {
       # save pending updates to a temporary file for referencing by other scripts, refresh hourly
       #
       if [ -f "$output_file" ] ; then
-         echo "$verbose" | grep -q yes && echo Found existing output file $output_file
-         find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
+         # delete existing output file if it is too old
+         find $output_file -type f -mmin +720 -delete	
          echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
+         echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
       fi
       if [ ! -f "$output_file" ] ; then
          echo "$verbose" | grep -q yes && echo Creating new output file $output_file
@@ -271,9 +273,10 @@ function centos() {
       # save pending updates to a temporary file for referencing by other scripts, refresh hourly
       #
       if [ -f "$output_file" ] ; then
-         echo "$verbose" | grep -q yes && echo Found existing output file $output_file
-         find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
+         # delete existing output file if it is too old
+         find $output_file -type f -mmin +720 -delete	
          echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
+         echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
       fi
       if [ ! -f "$output_file" ] ; then
          echo "$verbose" | grep -q yes && echo Creating new output file $output_file
