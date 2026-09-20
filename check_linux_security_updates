@@ -8,7 +8,8 @@
 # 2026-09-20   njeffrey    documentation updates
 # 2026-09-20   njeffrey    add verbose option
 # 2026-09-20   njeffrey    add usage notes to run this script hourly from cron to avoid nagios check timeouts
-# 2026-02-20   njeffrey    add support for Raspian (Debian-based Raspberry Pi OS)
+# 2026-02-20   njeffrey    add support for Raspbian (Debian-based Raspberry Pi OS)
+# 2026-02-20   njeffrey    refactoring
 
 
 
@@ -92,9 +93,30 @@ CHECK_NAME="security updates"
 output_file=/tmp/check_linux_security_updates.tmp
 verbose=no
 
+
+
+function check_output_file_age() {
+   #
+   echo "$verbose" | grep -q yes && echo Running function check_output_file_age
+   #
+   # delete the output file if it is too old
+   #
+   if [ ! -f "$output_file" ] ; then
+      echo "$verbose" | grep -q yes && echo Did not find an existing output file $output_file
+   fi
+   if [ -f "$output_file" ] ; then
+      # delete existing output file if it is too old
+      find $output_file -type f -mmin +720 -delete	
+      echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
+      echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
+   fi
+}
+
+
+
 function debian_variants() {
    #
-   # For apt based systems like Debian, Ubuntu, Raspian
+   # For apt based systems like Debian, Ubuntu
    # Note that apt does not have a stable CLI interface, use apt-get for scripts to avoid this warning:
    # WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
    #
@@ -104,7 +126,7 @@ function debian_variants() {
    # from the *-security repository.
    #
    # Sample output:
-   # $ apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' 
+   # $ apt-get --simulate upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' 
    # Inst libstdc++6 [14-20240412-0ubuntu1] (14.2.0-4ubuntu2~24.04 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64]) []
    # Inst libc6 [2.39-0ubuntu8] (2.39-0ubuntu8.6 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
    # Inst dpkg [1.22.6ubuntu6] (1.22.6ubuntu6.5 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
@@ -114,41 +136,20 @@ function debian_variants() {
    # 
    echo "$verbose" | grep -q yes && echo Running function debian_variants
    #
-   if [ -f "/bin/apt" ] || [ -f "/usr/bin/apt" ]; then
-      if [ -f "/etc/os-release" ]; then
-         #
-         # initialize variables
-         #
-         count=0                           #initialize variable
-         #
-         # save pending updates to a temporary file for referencing by other scripts, refresh hourly
-         #
-         if [ -f "$output_file" ] ; then
-            # delete existing output file if it is too old
-            find $output_file -type f -mmin +720 -delete	
-            echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
-            echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
-         fi
-         if [ ! -f "$output_file" ] ; then
-            echo "$verbose" | grep -q yes && echo Creating new output file $output_file
-            apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' > $output_file
-         fi
-         #
-         # count the number of pending updates
-         #
-         count=$(wc -l $output_file | awk '{print $1}')
-         #
-         # save all the update names as a single string
-         #
-         pending_updates=$(cat $output_file | awk '{print $2}' | tr '\n' ' ')
-         #
-         if [ "$count" -gt 0 ]; then
-            echo "WARN $count security updates pending, use apt-get -s upgrade | grep ^inst | grep \"-security\" for details"
-            exit $WARN
-         else
-            echo "OK $count security updates pending"
-            exit $OK
-         fi
+   if [ -f "/bin/apt" ] && [ -f "/etc/os-release" ]; then
+      # 
+      # skip this section for Raspbian, we have a unique section just for Raspbian
+      #
+      if [ $(grep -c "Raspbian" "/etc/os-release") -gt 0 ]; then
+         echo "$verbose" | grep -q yes && echo Detected Raspbian, exiting this function
+         return
+      fi
+      #
+      # save pending updates to a temporary file for referencing by other scripts
+      #
+      if [ ! -f "$output_file" ] ; then
+         echo "$verbose" | grep -q yes && echo Creating new output file $output_file
+         apt-get --simulate upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' > $output_file
       fi
    fi
 }
@@ -209,7 +210,6 @@ function rhel_variants() {
       #
       # initialize variables
       #
-      count=0                           #initialize variable
       regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades"
       regex_inclusions="^RHSA|^ALSA|^ELSA|^RLSA|^FEDORA"
       # 
@@ -227,40 +227,63 @@ function rhel_variants() {
          # this section is not complete, maybe a different check like check_rhel_subscription that runs as root?
       fi
       #
-      # save pending updates to a temporary file for referencing by other scripts, refresh hourly
+      # save pending updates to a temporary file for referencing by other scripts
       #
-      if [ -f "$output_file" ] ; then
-         # delete existing output file if it is too old
-         find $output_file -type f -mmin +720 -delete	
-         echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
-         echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
-      fi
       if [ ! -f "$output_file" ] ; then
          echo "$verbose" | grep -q yes && echo Creating new output file $output_file
          dnf updateinfo list --security | grep -E -v "$regex_exclusions" | grep -E "$regex_inclusions" > $output_file
-      fi
-      #
-      # count the number of pending updates
-      #
-      count=$(wc -l $output_file | awk '{print $1}')
-      #
-      # save all the update names as a single string
-      #
-      pending_updates=$(cat $output_file | awk '{print $1}' | tr '\n' ' ')
-      #
-      # We only get this far for RHEL with an active subscription, or any non-RHEL that does not require a subscription
-      # 
-      if [ "$count" -gt 0 ]; then
-         echo "WARN $count security updates pending, use dnf updateinfo list --security for details"
-         exit $WARN
-      else
-         echo "OK $count security updates pending"
-         exit $OK
       fi
    fi
 }
 
 
+
+function raspbian() {
+   # 
+   # Raspbian does not publish security-only updates, so this will report on all available updates
+   # Sample output below:
+   # $ apt-get --simulate upgrade
+   # NOTE: This is only a simulation!
+   #    apt-get needs root privileges for real execution.
+   #    Keep also in mind that locking is deactivated,
+   #    so don't depend on the relevance to the real current situation!
+   # Reading package lists... Done
+   # Building dependency tree
+   # Reading state information... Done
+   # Calculating upgrade... Done
+   # The following packages have been kept back:
+   #   raspberrypi-sys-mods raspberrypi-ui-mods
+   # 0 upgraded, 0 newly installed, 0 to remove and 2 not upgraded.
+   # The following packages will be upgraded:
+   #  curl libcurl4 libssl3 tzdata
+   # 4 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+   # Inst tzdata [2024a-0ubuntu0.24.04.1] (2024b-0ubuntu0.24.04.0 [all])
+   # Inst libssl3 [3.0.13-0ubuntu3.4] (3.0.13-0ubuntu3.5 [amd64])
+   # Inst libcurl4 [8.5.0-2ubuntu10.1] (8.5.0-2ubuntu10.2 [amd64])
+   # Inst curl [8.5.0-2ubuntu10.1] (8.5.0-2ubuntu10.2 [amd64])
+   # Conf tzdata (2024b-0ubuntu0.24.04.0 [all])
+   # Conf libssl3 (3.0.13-0ubuntu3.5 [amd64])
+   # Conf libcurl4 (8.5.0-2ubuntu10.2 [amd64])
+   # Conf curl (8.5.0-2ubuntu10.2 [amd64])
+   #
+   #
+   echo "$verbose" | grep -q yes && echo Running function raspbian
+   #
+   if [ -f "/usr/bin/apt" ] && [ -f "/etc/os-release" ]; then
+      # 
+      # confirm this system is running Raspian
+      #
+      if [ $(grep -c "Raspbian" "/etc/os-release") -gt 0 ]; then
+         #
+         # save pending updates to a temporary file for referencing by other scripts
+         #
+         if [ ! -f "$output_file" ] ; then
+            echo "$verbose" | grep -q yes && echo Creating new output file $output_file
+            apt-get --simulate upgrade | grep -E "^Inst" > $output_file
+         fi
+      fi
+   fi
+}
 
 
 function centos() {
@@ -279,35 +302,70 @@ function centos() {
       #
       # initialize variables
       #
-      count=0				#initialize variable
       regex_exclusions="^Name|^Updating and loading repositories|^Repositories loaded|^Last metadata expiration check|^Not root, Subscription Management repositories not updated|^Available Upgrades|^CentOS Stream|^Extra Packages"
       #
       # save pending updates to a temporary file for referencing by other scripts, refresh hourly
       #
-      if [ -f "$output_file" ] ; then
-         # delete existing output file if it is too old
-         find $output_file -type f -mmin +720 -delete	
-         echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
-         echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
-      fi
       if [ ! -f "$output_file" ] ; then
          echo "$verbose" | grep -q yes && echo Creating new output file $output_file
          dnf list updates 2>&1 | grep -E -v "$regex_exclusions" > $output_file
       fi
+   fi
+}
+
+
+function unknown_linux_version() {
+   #
+   # we only get this far if the Linux distro could not be detected
+   #
+   echo "$verbose" | grep -q yes && echo Running function unknown_linux_version
+   #
+   if [ ! -f "$output_file" ] ; then
+      echo "UNKNOWN unrecognized Linux version, could not determine if any security updates are pending."
+      exit $UNKNOWN
+   fi
+}
+
+
+function print_output_file() {
+   #
+   echo "$verbose" | grep -q yes && echo Running function print_output_file
+   #
+   # if we get this far, the output file can be used
+   #
+   if [ -f "$output_file" ] ; then
+      echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
+      #
+      # initialize variables
+      count=0
       #
       # count the number of pending updates
       #
       count=$(wc -l $output_file | awk '{print $1}')
       #
+      # save nagios performance data to a variable
+      #
+      perf_data="updates=$count"
+      #
       # save all the update names as a single string
       #
-      pending_updates=$(cat $output_file | awk '{print $1}' | tr '\n' ' ')
+      pending_updates=$(cat $output_file | awk '{print $2}' | tr '\n' ' ')
       #
       if [ "$count" -gt 0 ]; then
-         echo "WARN $count updates available, but since CentOS does not classify updates as security or bugfix or enhancement, this represents all available updates. Try these commands to see all pending updates: dnf list updates ; dnf repoquery --changelogs --upgrades"
+         output_common="WARN $count security updates pending, get details with"
+         output_distro=unknown
+         grep -q -E "debian|ubuntu|raspbian"                                 /etc/os-release && output_distro='apt-get --simulate upgrade | grep -i ^Inst | grep "-security"'
+         grep -q -E "rhel|fedora|centos|Oracle Linux|Rocky Linux|Alma Linux" /etc/os-release && output_distro='dnf updateinfo list --security'
+         grep -q -E "CentOS Stream"                                          /etc/os-release && output_distro='dnf list updates'
+         #
+         # custom message for Linux distros that do not track security updates
+         grep -q -E "CentOS Stream" /etc/os-release && output_common="WARN $0 updates pending, but since CentOS   does not classify updates as security or bugfix or enhancement, this represents all available updates. Get details with "
+         grep -q -E "Raspbian"      /etc/os-release && output_common="WARN $0 updates pending, but since Raspbian does not classify updates as security or bugfix or enhancement, this represents all available updates. Get details with "
+         #
+         echo "$output_common $output_distro | $perf_data"
          exit $WARN
       else
-         echo "OK $count updates pending"
+         echo "OK $count security updates pending | $perf_data"
          exit $OK
       fi
    fi
@@ -315,22 +373,13 @@ function centos() {
 
 
 
-
-function unknown_linux_version() {
-   #
-   # we should never get this far
-   #
-   echo "$verbose" | grep -q yes && echo Running function unknown_linux_version
-   #
-   echo "UNKNOWN could not determine if any security updates are pending"
-   exit $UNKNOWN
-}
-
-
 # --------------- main body of script
+check_output_file_age
 debian_variants
 rhel_variants
+raspbian
 centos
 unknown_linux_version
+print_output_file
 
 
