@@ -5,6 +5,8 @@
 # 2026-01-08	njeffrey    Script created
 # 2026-03-10   njeffrey    Bug fix for CentOS
 # 2026-03-10   njeffrey    update regex exclusions for CentOS
+# 2026-09-20   njeffrey    documentation updates
+
 
 
 # FUTURE ENHANCEMENTS
@@ -158,6 +160,13 @@ function rhel_variants() {
    # ALSA-2025:23484 Moderate/Sec.  libssh-0.11.1-5.el10_1.x86_64
    # ALSA-2025:23479 Moderate/Sec.  openssh-9.9p1-12.el10_1.alma.1.x86_64
    # ALSA-2025:23940 Moderate/Sec.  python3-3.12.12-1.el10_1.x86_64
+   #
+   # Sample output on Oracle Linux (ELSA = Enterprise Linux Security Advisory)
+   # $ dnf updateinfo list --security 
+   # ELSA-2026-18597   Low/Sec.       NetworkManager-1:1.54.3-2.0.1.el9.x86_64
+   # ELSA-2026-19354   Important/Sec. PackageKit-1.2.6-2.0.1.el9_8.x86_64
+   # ELSA-2026-60226-0 Moderate/Sec.  attr-2.6.0-1.el9_8.x86_64
+   # ELSA-2026-39576   Important/Sec. cifs-utils-7.6-2.el9_8.x86_64
    #
    # Sample output on Rocky Linux (RLSA = Rocky Linux Security Advisory)
    # dnf updateinfo list --security     <-- only show security updates
