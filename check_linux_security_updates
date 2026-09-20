@@ -359,8 +359,8 @@ function print_output_file() {
          grep -q -E "CentOS Stream"                                          /etc/os-release && output_distro='dnf list updates'
          #
          # custom message for Linux distros that do not track security updates
-         grep -q -E "CentOS Stream" /etc/os-release && output_common="WARN $0 updates pending, but since CentOS   does not classify updates as security or bugfix or enhancement, this represents all available updates. Get details with "
-         grep -q -E "Raspbian"      /etc/os-release && output_common="WARN $0 updates pending, but since Raspbian does not classify updates as security or bugfix or enhancement, this represents all available updates. Get details with "
+         grep -q -E "CentOS Stream" /etc/os-release && output_common="WARN $count updates pending, but since CentOS   does not classify updates as security or bugfix or enhancement, this represents all available updates. Get details with "
+         grep -q -E "Raspbian"      /etc/os-release && output_common="WARN $count updates pending, but since Raspbian does not classify updates as security or bugfix or enhancement, this represents all available updates. Get details with "
          #
          echo "$output_common $output_distro | $perf_data"
          exit $WARN
