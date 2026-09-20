@@ -6,6 +6,7 @@
 # 2026-03-10   njeffrey    Bug fix for CentOS
 # 2026-03-10   njeffrey    update regex exclusions for CentOS
 # 2026-09-20   njeffrey    documentation updates
+# 2026-09-20   njeffrey    add verbose option
 
 
 
@@ -83,7 +84,7 @@ CRITICAL=2
 UNKNOWN=3
 CHECK_NAME="security updates"
 output_file=/tmp/check_linux_security_updates.tmp
-
+verbose=no
 
 function debian_variants() {
    #
@@ -114,8 +115,15 @@ function debian_variants() {
       #
       # save pending updates to a temporary file for referencing by other scripts, refresh hourly
       #
-      test -f $output_file && find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
-      test -f $output_file || apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' > $output_file
+      if [ -f "$output_file" ] ; then
+         echo $verbose | $grep -q yes && echo Found existing output file $output_file
+         find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
+         echo $verbose | $grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
+      fi
+      if [ ! -f "$output_file" ] ; then
+         echo $verbose | $grep -q yes && echo Creating new output file $output_file
+         apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' > $output_file
+      fi
       #
       # count the number of pending updates
       #
@@ -210,8 +218,15 @@ function rhel_variants() {
       #
       # save pending updates to a temporary file for referencing by other scripts, refresh hourly
       #
-      test -f $output_file && find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
-      test -f $output_file || dnf updateinfo list --security | grep -E -v "$regex_exclusions" | grep -E "$regex_inclusions" > $output_file
+      if [ -f "$output_file" ] ; then
+         echo $verbose | $grep -q yes && echo Found existing output file $output_file
+         find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
+         echo $verbose | $grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
+      fi
+      if [ ! -f "$output_file" ] ; then
+         echo $verbose | $grep -q yes && echo Creating new output file $output_file
+         dnf updateinfo list --security | grep -E -v "$regex_exclusions" | grep -E "$regex_inclusions" > $output_file
+      fi
       #
       # count the number of pending updates
       #
@@ -255,8 +270,15 @@ function centos() {
       #
       # save pending updates to a temporary file for referencing by other scripts, refresh hourly
       #
-      test -f $output_file && find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
-      test -f $output_file || dnf list updates 2>&1 | grep -E -v "$regex_exclusions" > $output_file
+      if [ -f "$output_file" ] ; then
+         echo $verbose | $grep -q yes && echo Found existing output file $output_file
+         find $output_file -type f -mmin +720 -delete	#delete if more than 12 hours old
+         echo $verbose | $grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
+      fi
+      if [ ! -f "$output_file" ] ; then
+         echo $verbose | $grep -q yes && echo Creating new output file $output_file
+         dnf list updates 2>&1 | grep -E -v "$regex_exclusions" > $output_file
+      fi
       #
       # count the number of pending updates
       #
