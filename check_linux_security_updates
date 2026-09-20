@@ -7,6 +7,8 @@
 # 2026-03-10   njeffrey    update regex exclusions for CentOS
 # 2026-09-20   njeffrey    documentation updates
 # 2026-09-20   njeffrey    add verbose option
+# 2026-09-20   njeffrey    add usage notes to run this script hourly from cron to avoid nagios check timeouts
+# 2026-02-20   njeffrey    add support for Raspian (Debian-based Raspberry Pi OS)
 
 
 
@@ -23,7 +25,11 @@
 # -----
 # Nagios check to return the number of available security updates
 # Tested on Debian, Ubuntu, RHEL, Rocky, Alma, Oracle Linux, CentOS, Fedora.  Should be easy to add other distros.
-
+#
+# This script can take more than 60 seconds to run, so to avoid nagios check timeouts, execute this script hourly from the nagios crontab.  
+# For example:
+# $ crontab -l
+# 1 * * * * /usr/local/nagios/libexec/check_linux_security_updates >/dev/null 2>&1 #nagios helper script
 
 # USAGE
 # -----
@@ -88,7 +94,7 @@ verbose=no
 
 function debian_variants() {
    #
-   # For apt based systems like Debian, Ubuntu
+   # For apt based systems like Debian, Ubuntu, Raspian
    # Note that apt does not have a stable CLI interface, use apt-get for scripts to avoid this warning:
    # WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
    #
@@ -106,6 +112,7 @@ function debian_variants() {
    # Inst gpg [2.4.4-2ubuntu17] (2.4.4-2ubuntu17.4 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64]) [gnupg:amd64 ]
    # Inst sudo [1.9.15p5-3ubuntu5] (1.9.15p5-3ubuntu5.24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64]) []
    # 
+   echo "$verbose" | grep -q yes && echo Running function debian_variants
    #
    if [ -f "/bin/apt" ] && [ -f "/etc/os-release" ]; then
       #
@@ -194,6 +201,7 @@ function rhel_variants() {
    # FEDORA-2026-7b32524912 bugfix         Low         python3-boto3-1.42.23-1.fc43.noarch         2026-01-08 01:11:49
    # FEDORA-2026-1a2b3c4d   Important/Sec.             openssl security update
    #
+   echo "$verbose" | grep -q yes && echo Running function rhel_variants
    #
    if [ -f "/etc/redhat-release" ] || [ -f "/etc/fedora-release" ] || [ -f "/etc/rocky-release" ] || [ -f "/etc/alma-release" ] || [ -f "/etc/oracle-release" ]; then
       #
@@ -263,6 +271,8 @@ function centos() {
    # dnf check-update                          # <--- more appropriate for what we want here, just a list of available package updates
    # dnf list updates                          # <--- best option, similar to above but a bit less verbose
    #
+   echo "$verbose" | grep -q yes && echo Running function centos
+   #
    if [ -f "/etc/centos-release" ]; then
       #
       # initialize variables
@@ -307,6 +317,8 @@ function centos() {
 function unknown_linux_version() {
    #
    # we should never get this far
+   #
+   echo "$verbose" | grep -q yes && echo Running function unknown_linux_version
    #
    echo "UNKNOWN could not determine if any security updates are pending"
    exit $UNKNOWN
