@@ -114,39 +114,41 @@ function debian_variants() {
    # 
    echo "$verbose" | grep -q yes && echo Running function debian_variants
    #
-   if [ -f "/bin/apt" ] && [ -f "/etc/os-release" ]; then
-      #
-      # initialize variables
-      #
-      count=0                           #initialize variable
-      #
-      # save pending updates to a temporary file for referencing by other scripts, refresh hourly
-      #
-      if [ -f "$output_file" ] ; then
-         # delete existing output file if it is too old
-         find $output_file -type f -mmin +720 -delete	
-         echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
-         echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
-      fi
-      if [ ! -f "$output_file" ] ; then
-         echo "$verbose" | grep -q yes && echo Creating new output file $output_file
-         apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' > $output_file
-      fi
-      #
-      # count the number of pending updates
-      #
-      count=$(wc -l $output_file | awk '{print $1}')
-      #
-      # save all the update names as a single string
-      #
-      pending_updates=$(cat $output_file | awk '{print $2}' | tr '\n' ' ')
-      #
-      if [ "$count" -gt 0 ]; then
-         echo "WARN $count security updates pending, use apt-get -s upgrade | grep ^inst | grep \"-security\" for details"
-         exit $WARN
-      else
-         echo "OK $count security updates pending"
-         exit $OK
+   if [ -f "/bin/apt" ] || [ -f "/usr/bin/apt" ]; then
+      if [ -f "/etc/os-release" ]; then
+         #
+         # initialize variables
+         #
+         count=0                           #initialize variable
+         #
+         # save pending updates to a temporary file for referencing by other scripts, refresh hourly
+         #
+         if [ -f "$output_file" ] ; then
+            # delete existing output file if it is too old
+            find $output_file -type f -mmin +720 -delete	
+            echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
+            echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
+         fi
+         if [ ! -f "$output_file" ] ; then
+            echo "$verbose" | grep -q yes && echo Creating new output file $output_file
+            apt-get -s upgrade | awk 'BEGIN{IGNORECASE=1} /^Inst/ && /security/' > $output_file
+         fi
+         #
+         # count the number of pending updates
+         #
+         count=$(wc -l $output_file | awk '{print $1}')
+         #
+         # save all the update names as a single string
+         #
+         pending_updates=$(cat $output_file | awk '{print $2}' | tr '\n' ' ')
+         #
+         if [ "$count" -gt 0 ]; then
+            echo "WARN $count security updates pending, use apt-get -s upgrade | grep ^inst | grep \"-security\" for details"
+            exit $WARN
+         else
+            echo "OK $count security updates pending"
+            exit $OK
+         fi
       fi
    fi
 }
