@@ -2,7 +2,7 @@
 
 # CHANGE LOG
 # ----------
-# 2026-01-08	njeffrey    Script created
+# 2026-01-08   njeffrey    Script created
 # 2026-03-10   njeffrey    Bug fix for CentOS
 # 2026-03-10   njeffrey    update regex exclusions for CentOS
 # 2026-09-20   njeffrey    documentation updates
@@ -10,6 +10,7 @@
 # 2026-09-20   njeffrey    add usage notes to run this script hourly from cron to avoid nagios check timeouts
 # 2026-02-20   njeffrey    add support for Raspbian (Debian-based Raspberry Pi OS)
 # 2026-02-20   njeffrey    refactoring
+# 2026-02-20   njeffrey    add HTML report
 
 
 
@@ -34,7 +35,7 @@
 
 # USAGE
 # -----
-# It is assumed this scrpt is located in /usr/local/nagios/libexec/ or equivalent for your environment
+# It is assumed this script is located in /usr/local/nagios/libexec/ or equivalent for your environment
 #
 # Add a section similar to the following to services.cfg
 #
@@ -91,6 +92,10 @@ CRITICAL=2
 UNKNOWN=3
 CHECK_NAME="security updates"
 output_file=/tmp/check_linux_security_updates.tmp
+html_file=/tmp/check_linux_security_updates.html
+yyyymmddhhmm=`date '+%Y-%m-%d %H:%M'`
+host_name=`hostname -f`
+linux_distro=`grep PRETTY_NAME /etc/os-release | sed -e 's/"//g' | sed -e 's/^PRETTY_NAME=//g' | sed -e 's/(.*)//g'`
 verbose=no
 
 
@@ -109,6 +114,12 @@ function check_output_file_age() {
       find $output_file -type f -mmin +720 -delete	
       echo "$verbose" | grep -q yes && ( test -f $output_file || echo Deleted existing output file $output_file )
       echo "$verbose" | grep -q yes && ( test -f $output_file && echo Using   existing output file $output_file )
+   fi
+   #
+   # delete the HTML report file if it is more than 24 hours old
+   #
+   if [ -f "$html_file" ] ; then
+      find $html_file -type f -mmin +1440 -delete	
    fi
 }
 
@@ -194,7 +205,7 @@ function rhel_variants() {
    # RLSA-2025:23940 Moderate/Sec.  python3-3.12.12-1.el10_1.x86_64
    # RLSA-2026:0002  Moderate/Sec.  tar-2:1.35-9.el10_1.x86_64
    #
-   # Sample output on Fedora:
+   # Sample output on Fedora 40:
    # dnf updateinfo list
    # Updating and loading repositories:
    # Repositories loaded.
@@ -203,6 +214,20 @@ function rhel_variants() {
    # FEDORA-2026-758e825a45 enhancement    None        libsolv-0.7.35-3.fc43.x86_64                2026-01-07 01:08:44
    # FEDORA-2026-7b32524912 bugfix         Low         python3-boto3-1.42.23-1.fc43.noarch         2026-01-08 01:11:49
    # FEDORA-2026-1a2b3c4d   Important/Sec.             openssl security update
+   #
+   # Sample output on Fedora 44:
+   # dnf updateinfo list --security
+   # Repositories loaded.
+   # Name                   Type     Severity                                          Package              Issued
+   # FEDORA-2026-044e56d9ff security Moderate                         tar-2:1.35-9.fc44.x86_64 2026-09-09 04:47:08
+   # FEDORA-2026-084c991d17 security Moderate                  libnghttp2-1.68.0-5.fc44.x86_64 2026-08-09 00:58:50
+   # FEDORA-2026-0eb8e878b6 security Important                          jq-1.8.1-3.fc44.x86_64 2026-04-25 01:21:36
+   # FEDORA-2026-110c1a7742 security Moderate                     p11-kit-0.26.5-1.fc44.x86_64 2026-08-08 01:36:59
+   # FEDORA-2026-110c1a7742 security Moderate               p11-kit-trust-0.26.5-1.fc44.x86_64 2026-08-08 01:36:59
+   # FEDORA-2026-2c124fcf93 security Important                    python3-3.14.7-1.fc44.x86_64 2026-08-19 01:01:07
+   # FEDORA-2026-2c124fcf93 security Important               python3-libs-3.14.7-1.fc44.x86_64 2026-08-19 01:01:07
+   #
+   #
    #
    echo "$verbose" | grep -q yes && echo Running function rhel_variants
    #
@@ -327,6 +352,129 @@ function unknown_linux_version() {
 }
 
 
+function create_html_file() {
+   #
+   echo "$verbose" | grep -q yes && echo Running function create_html_file
+   #
+   # break out of function early for unsupported Linux distros 
+   if [ $(grep -c -E "PRETTY_NAME=\"Raspbian" "/etc/os-release") -gt 0 ]; then
+      echo "$verbose" | grep -q yes && echo Detected Raspbian, exiting this function
+      return
+   fi
+   if [ $(grep -c -E "PRETTY_NAME=\"Debian" "/etc/os-release") -gt 0 ]; then
+      echo "$verbose" | grep -q yes && echo Detected Debian, exiting this function
+      return
+   fi
+   if [ $(grep -c -E "PRETTY_NAME=\"Ubuntu" "/etc/os-release") -gt 0 ]; then
+      echo "$verbose" | grep -q yes && echo Detected Ubuntu, exiting this function
+      return
+   fi
+   #
+   # We only get this far if we have a supported Linux distro
+   #
+   if [ -f "$html_file" ] ; then
+      echo "$verbose" | grep -q yes && echo HTML report file $html_file already exists, no need to recreate at this time
+      find "$html_file" -type f -mmin +1440 -delete	
+   fi
+   if [ ! -f "$html_file" ] ; then
+      echo "$verbose" | grep -q yes && echo HTML report file $html_file does not exist, creating now.
+      #
+      # define variables
+      #
+      count=$(wc -l $output_file | awk '{print $1}')
+      #
+      # Figure out the base URL for assorted Linux flavours
+      # 
+      BASE_URL=" "
+      grep -q -E "PRETTY_NAME=\"CentOS Stream"            /etc/os-release && BASE_URL="CentOS does not publish errata details"
+      grep -q -E "PRETTY_NAME=\"Fedora Linux"             /etc/os-release && BASE_URL="https://bodhi.fedoraproject.org/updates"   
+      grep -q -E "PRETTY_NAME=\"Rocky Linux"              /etc/os-release && BASE_URL="https://errata.rockylinux.org"   
+      grep -q -E "PRETTY_NAME=\"Red Hat Enterprise Linux" /etc/os-release && BASE_URL="https://access.redhat.com/errata"
+      grep -q -E "PRETTY_NAME=\"Oracle Linux"             /etc/os-release && BASE_URL="https://linux.oracle.com/errata"
+      grep -q -E "PRETTY_NAME=\"AlmaLinux 8"              /etc/os-release && BASE_URL="https://errata.almalinux.org/8"
+      grep -q -E "PRETTY_NAME=\"AlmaLinux 9"              /etc/os-release && BASE_URL="https://errata.almalinux.org/9"
+      grep -q -E "PRETTY_NAME=\"AlmaLinux 10"             /etc/os-release && BASE_URL="https://errata.almalinux.org/10"
+      grep -q -E "PRETTY_NAME=\"AlmaLinux 11"             /etc/os-release && BASE_URL="https://errata.almalinux.org/11"
+      grep -q -E "PRETTY_NAME=\"AlmaLinux 12"             /etc/os-release && BASE_URL="https://errata.almalinux.org/12"
+      #
+      # creating HTML header
+      #
+      echo '<html><body>'                                                                           > $html_file
+      echo "<br>This report was generated by the $host_name:$0 script at $yyyymmddhhmm"            >> $html_file
+      echo "<br>Hostname: $host_name"                                                              >> $html_file
+      echo "<br>Operating system: $linux_distro"                                                   >> $html_file
+      echo "<br>Last checked: $yyyymmddhhmm"                                                       >> $html_file
+      echo "<br>Number of outstanding security updates: $count"                                    >> $html_file
+      echo "<br><hr><br>"                                                                          >> $html_file
+      echo '<table border=1>'                                                                      >> $html_file
+      #
+      # Run this section for CentOS Stream
+      # CentOS does not publish security errata, so this table layout is different
+      # Instead, we get output similar to:
+      # $dnf list updates
+      # Last metadata expiration check: 0:09:58 ago on Sun 20 Sep 2026 10:48:58 PM MDT.
+      # Available Upgrades
+      # NetworkManager.x86_64                  1:1.58.0-1.el10                 baseos
+      # NetworkManager-libnm.x86_64            1:1.58.0-1.el10                 baseos
+      # NetworkManager-tui.x86_64              1:1.58.0-1.el10                 baseos
+      # amd-gpu-firmware.noarch                20260812-26.el10                appstream
+      # attr.x86_64                            2.6.0-2.el10                    baseos
+      # audit.x86_64                           4.2.1-3.el10                    baseos
+      #
+      if [ $(grep -c "CentOS Stream" "/etc/os-release") -gt 0 ]; then
+         echo '<tr bgcolor=gray><td>Package </td><td> Version </td><td> Repository </td><td> Hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
+         cat $output_file | while read -r package version repo; do
+            [ -z "$package" ] && continue           #skip empty lines
+            echo "<tr><td> $package </td><td> $version </td><td> $repository </td><td> $host_name </td><td> $linux_distro </td><td> $yyyymmddhhmm </td></tr>" >> $html_file
+         done
+      fi
+      #
+      # Run this section for Fedora
+      #
+      if [ $(grep -c -E "PRETTY_NAME=\"Fedora Linux" "/etc/os-release") -gt 0 ]; then
+         echo '<tr bgcolor=gray><td>Vendor URL </td><td> Advisory </td><td> Severity </td><td> Package </td><td> hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
+         cat $output_file | while read -r advisory type severity package datestamp timestamp; do
+            [ -z "$advisory" ] && continue                        #skip empty lines
+            advisory_url="${BASE_URL}/${advisory}"                #generate the full URL for the advisory
+            echo "<tr><td> <a href=$advisory_url>$advisory_url</a> </td><td> $advisory </td><td> $severity </td><td> $package </td> <td> $host_name </td><td> $linux_distro </td><td> $yyyymmddhhmm </td></tr>" >> $html_file
+         done
+      fi
+      #
+      # Run this section for AlmaLinux
+      # AlmaLinux is difficult, they change the default URL syntax used by other RHEL derivatives
+      #
+      if [ $(grep -c -E "PRETTY_NAME=\"AlmaLinux" "/etc/os-release") -gt 0 ]; then
+         echo '<tr bgcolor=gray><td>Vendor URL </td><td> Advisory </td><td> Severity </td><td> Package </td><td> hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
+         cat $output_file | while read -r advisory severity package; do
+            [ -z "$advisory" ] && continue                        #skip empty lines
+            advisory_url="${BASE_URL}/${advisory}"                #generate the full URL for the advisory
+            advisory_alma=`echo $advisory | sed -e 's/:/\-/g'`    #change the : to - in the advisory name
+            advisory_url_alma="${BASE_URL}/${advisory_alma}.html" #append .html to URL
+            advisory_url=$advisory_url_alma                       #save back to original variable name
+            advisory=$advisory_alma                               #save back to original variable name
+            echo "<tr><td> <a href=$advisory_url>$advisory_url</a> </td><td> $advisory </td><td> $severity </td><td> $package </td> <td> $host_name </td><td> $linux_distro </td><td> $yyyymmddhhmm </td></tr>" >> $html_file
+         done
+      fi
+      #
+      # Run this section for RHEL, Rocky Linux, Oracle Linux
+      # These distros all use the same formatting for their advisories
+      #
+      if [ $(grep -c -E "PRETTY_NAME=\"Rocky Linux|PRETTY_NAME=\"Oracle Linux|PRETTY_NAME=\"Red Hat Enterprise Linux" "/etc/os-release") -gt 0 ] ; then
+         echo '<tr bgcolor=gray><td>Vendor URL </td><td> Advisory </td><td> Severity </td><td> Package </td><td> hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
+         cat $output_file | while read -r advisory severity package; do
+            [ -z "$advisory" ] && continue                        #skip empty lines
+            advisory_url="${BASE_URL}/${advisory}"                #generate the full URL for the advisory
+            echo "<tr><td> <a href=$advisory_url>$advisory_url</a> </td><td> $advisory </td><td> $severity </td><td> $package </td> <td> $host_name </td><td> $linux_distro </td><td> $yyyymmddhhmm </td></tr>" >> $html_file
+         done
+      fi
+      #
+      # creating HTML footer
+      #
+      echo '</table></body></html>'     >> $html_file
+   fi
+}
+
+
 function print_output_file() {
    #
    echo "$verbose" | grep -q yes && echo Running function print_output_file
@@ -380,6 +528,7 @@ rhel_variants
 raspbian
 centos
 unknown_linux_version
+create_html_file
 print_output_file
 
 
