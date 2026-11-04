@@ -447,11 +447,8 @@ function create_html_file() {
          echo '<tr bgcolor=gray><td>Vendor URL </td><td> Advisory </td><td> Severity </td><td> Package </td><td> hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
          cat $output_file | while read -r advisory severity package; do
             [ -z "$advisory" ] && continue                        #skip empty lines
-            advisory_url="${BASE_URL}/${advisory}"                #generate the full URL for the advisory
-            advisory_alma=`echo $advisory | sed -e 's/:/\-/g'`    #change the : to - in the advisory name
-            advisory_url_alma="${BASE_URL}/${advisory_alma}.html" #append .html to URL
-            advisory_url=$advisory_url_alma                       #save back to original variable name
-            advisory=$advisory_alma                               #save back to original variable name
+            advisory=`echo $advisory | sed -e 's/:/\-/g'`         #change the : to - in the advisory name
+            advisory_url="${BASE_URL}/${advisory}.html"           #generate the full URL for the advisory, appending .html to the end
             echo "<tr><td> <a href=$advisory_url>$advisory_url</a> </td><td> $advisory </td><td> $severity </td><td> $package </td> <td> $host_name </td><td> $linux_distro </td><td> $yyyymmddhhmm </td></tr>" >> $html_file
          done
       fi
@@ -463,7 +460,7 @@ function create_html_file() {
          echo '<tr bgcolor=gray><td>Vendor URL </td><td> Advisory </td><td> Severity </td><td> Package </td><td> hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
          cat $output_file | while read -r advisory severity package; do
             [ -z "$advisory" ] && continue                        #skip empty lines
-            advisory_url="${BASE_URL}/${advisory}"                #generate the full URL for the advisory
+            advisory_url="${BASE_URL}/${advisory}.html"           #generate the full URL for the advisory, appending .html to the end
             echo "<tr><td> <a href=$advisory_url>$advisory_url</a> </td><td> $advisory </td><td> $severity </td><td> $package </td> <td> $host_name </td><td> $linux_distro </td><td> $yyyymmddhhmm </td></tr>" >> $html_file
          done
       fi
