@@ -8,9 +8,9 @@
 # 2026-09-20   njeffrey    documentation updates
 # 2026-09-20   njeffrey    add verbose option
 # 2026-09-20   njeffrey    add usage notes to run this script hourly from cron to avoid nagios check timeouts
-# 2026-02-20   njeffrey    add support for Raspbian (Debian-based Raspberry Pi OS)
-# 2026-02-20   njeffrey    refactoring
-# 2026-02-20   njeffrey    add HTML report
+# 2026-10-20   njeffrey    add support for Raspbian (Debian-based Raspberry Pi OS)
+# 2026-10-20   njeffrey    refactoring
+# 2026-10-20   njeffrey    add HTML report
 
 
 
