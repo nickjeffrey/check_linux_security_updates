@@ -423,13 +423,14 @@ function create_html_file() {
       #
       if [ $(grep -c "CentOS Stream" "/etc/os-release") -gt 0 ]; then
          echo '<tr bgcolor=gray><td>Package </td><td> Version </td><td> Repository </td><td> Hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
-         cat $output_file | while read -r package version repo; do
+         cat $output_file | while read -r package version repository; do
             [ -z "$package" ] && continue           #skip empty lines
             echo "<tr><td> $package </td><td> $version </td><td> $repository </td><td> $host_name </td><td> $linux_distro </td><td> $yyyymmddhhmm </td></tr>" >> $html_file
          done
       fi
       #
       # Run this section for Fedora
+      # Example URL: https://bodhi.fedoraproject.org/updates/FEDORA-2026-0609e13c0d
       #
       if [ $(grep -c -E "PRETTY_NAME=\"Fedora Linux" "/etc/os-release") -gt 0 ]; then
          echo '<tr bgcolor=gray><td>Vendor URL </td><td> Advisory </td><td> Severity </td><td> Package </td><td> hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
@@ -441,7 +442,9 @@ function create_html_file() {
       fi
       #
       # Run this section for AlmaLinux
-      # AlmaLinux is difficult, they change the default URL syntax used by other RHEL derivatives
+      # AlmaLinux changes the default URL naming convention, replacing : with - 
+      # So for an advisory name of ALSA-2026:88455, the URL will be as shown below:
+      # Example URL: https://errata.almalinux.org/10/ALSA-2026-88455.html
       #
       if [ $(grep -c -E "PRETTY_NAME=\"AlmaLinux" "/etc/os-release") -gt 0 ]; then
          echo '<tr bgcolor=gray><td>Vendor URL </td><td> Advisory </td><td> Severity </td><td> Package </td><td> hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
@@ -453,14 +456,30 @@ function create_html_file() {
          done
       fi
       #
-      # Run this section for RHEL, Rocky Linux, Oracle Linux
-      # These distros all use the same formatting for their advisories
+      # Run this section for Oracle Linux
+      # Oracle Linux names their advisories slightly differently than AlmaLinux
+      # So for an advisory name of ELSA-2026-88455, the URL will be as shown below:
+      # Example URL: https://linux.oracle.com/errata/ELSA-2026-88455.html
       #
-      if [ $(grep -c -E "PRETTY_NAME=\"Rocky Linux|PRETTY_NAME=\"Oracle Linux|PRETTY_NAME=\"Red Hat Enterprise Linux" "/etc/os-release") -gt 0 ] ; then
+      if [ $(grep -c -E "PRETTY_NAME=\"Oracle Linux" "/etc/os-release") -gt 0 ] ; then
          echo '<tr bgcolor=gray><td>Vendor URL </td><td> Advisory </td><td> Severity </td><td> Package </td><td> hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
          cat $output_file | while read -r advisory severity package; do
             [ -z "$advisory" ] && continue                        #skip empty lines
             advisory_url="${BASE_URL}/${advisory}.html"           #generate the full URL for the advisory, appending .html to the end
+            echo "<tr><td> <a href=$advisory_url>$advisory_url</a> </td><td> $advisory </td><td> $severity </td><td> $package </td> <td> $host_name </td><td> $linux_distro </td><td> $yyyymmddhhmm </td></tr>" >> $html_file
+         done
+      fi
+      #
+      # Run this section for Rocky Linux and Red Hat Enterprise Linux
+      # These distros do not append .html to the URL for their advisories.
+      # Example URL: https://errata.rockylinux.org/RLSA-2026:88455
+      # Example URL: https://access.redhat.com/errata/RHSA-2026:88455
+      #
+      if [ $(grep -c -E "PRETTY_NAME=\"Rocky Linux|PRETTY_NAME=\"Red Hat Enterprise Linux" "/etc/os-release") -gt 0 ] ; then
+         echo '<tr bgcolor=gray><td>Vendor URL </td><td> Advisory </td><td> Severity </td><td> Package </td><td> hostname </td><td> Linux Version </td><td> Last Checked </td></tr>' >> $html_file
+         cat $output_file | while read -r advisory severity package; do
+            [ -z "$advisory" ] && continue                        #skip empty lines
+            advisory_url="${BASE_URL}/${advisory}"                #generate the full URL for the advisory, do not append .html to the end of the URL
             echo "<tr><td> <a href=$advisory_url>$advisory_url</a> </td><td> $advisory </td><td> $severity </td><td> $package </td> <td> $host_name </td><td> $linux_distro </td><td> $yyyymmddhhmm </td></tr>" >> $html_file
          done
       fi
